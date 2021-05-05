@@ -1,0 +1,81 @@
+<!--Rooms Header-->
+<div class="row mt-3">
+  <div class="col-md-2">
+    <a routerLink="/profile" class="p-2 ui blue circular label">
+      <i class="centered left arrow icon"></i> Back
+    </a>
+  </div>
+  <!-- <div class="col-4">
+    <a class="p-2 ui green circular label">
+      <i class="centered plus icon"></i> Add Room
+    </a>
+  </div> -->
+  <div class="col-md-10 d-flex justify-content-end">
+    <form (submit)="storeRoom($event)" class="ui action input">
+      <div>
+        <a (click)="clear()" class="mt-2 mr-1 ui circular orange label">clear</a>
+      </div>
+      <input type="hidden" id="action" name="action" value="{{ actions.create }}">
+      <input type="hidden" id="id" name="id">
+      <input type="text" id="title" name="title" placeholder="Room title" required>
+      <input type="date" id="due_date" name="due_date" class="ml-1" required>
+      <button class="ui inverted blue button ml-1">save room</button>
+    </form>
+  </div>
+</div>
+
+<!--Rooms Display-->
+<div class="row">
+  <div class="col-12">
+    <div class="ui horizontal divider">
+      <h1 class="ui centered header">My Rooms</h1>
+    </div>
+  </div>
+  <div class="col-md-12">
+    <table class="ui inverted gray definition table">
+      <thead>
+        <th></th>
+        <th>Title</th>
+        <th>Meeting ID</th>
+        <th>Due Time</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </thead>
+      <tbody *ngIf="rooms.length > 0">
+          <tr *ngFor="let room of rooms; let i = index">
+              <td>{{ (i + 1)}}</td>
+              <td class="d-flex justify-content-between">
+                {{ room?.title }}
+              </td>
+              <td>
+                <a href="javascript:void(0)">
+                  {{ room?._id }}
+                </a>
+              </td>
+              <td>{{ showDate(room.dueDate).toDateString() }}</td>
+              <td>
+                <a *ngIf="room.dueDate < dateNow" class="ui green circular label">
+                  <i class="unlock icon"></i>start
+                </a>
+                <span *ngIf="room.dueDate >= dateNow" class="ui red circular label">
+                  <i class="lock icon"></i>closed
+                </span>
+              </td>
+              <td>
+                <div>
+                  <a (click)="editRoom(room.title, room.dueDate, room._id)" class="ui blue circular label">
+                    <i class="write icon"></i>edit
+                  </a>
+                  <a (click)="deleteRoom(room._id)" class="ui red circular label">
+                    <i class="trash icon"></i>delete
+                  </a>
+                  <a class="ui green circular label">
+                    <i class="download icon"></i>caption file
+                  </a>
+                </div>
+              </td>
+          </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

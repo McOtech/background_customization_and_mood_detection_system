@@ -44,3 +44,10 @@ testem.log
 # System Files
 .DS_Store
 Thumbs.db
+
+#added custom directories
+/samples/webrtc-web
+/src/models
+/src/face-api.min.js
+/src/assets/images
+/src/assets/videos

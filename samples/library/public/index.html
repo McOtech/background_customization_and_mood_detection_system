@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video processing</title>
+</head>
+<style>
+    /* #output_canvas {
+        filter: blur(10px) invert(3) opacity(0.2);
+        filter: hue-rotate(180deg) saturate(250%);
+        filter: saturate(200%);
+        max-width: 850px;
+        width: 450px;
+    } */
+</style>
+<body style="background-color: gainsboro;">
+    <div>
+        <label>
+            Increase: <input type="range" min="-255" max="255" value="0" id="inc-range">
+        </label>
+        <label>
+            Decrease: <input type="range" min="-255" max="255" value="0" id="dec-range">
+        </label>
+        <label>
+            <input type="file" id="custom-bg">
+        </label>
+        <label>
+            background Transparency: <input type="range" min="0" max="1" step="0.1" value="0" id="alpha">
+        </label>
+        <label>
+            Black & White: <input type="checkbox" id="bw">
+        </label>
+        <label>
+            Zoom: <input type="range" min="1" max="3" step="0.5" value="1" id="zoom">
+        </label>
+        <label>
+            Saturation: <input type="range" min="50" max="250" step="10" value="100" id="saturation">
+        </label>
+        <button id="pause-stream">Pause</button>
+        <button id="green-screen-capture">Capture Green Screen</button>
+    </div>
+    <div>
+        <!-- <video id="video" src="assets/videos/Young_African_American_Woman_Laughing_Dancing_2.mp4" muted loop controls></video> -->
+        
+        <canvas id="output_canvas" width="850" height="450"></canvas>
+    </div>
+    <script src="/face-api.min.js"></script>
+    <script>
+        let video, c_out, ctx_out, c_in, c_tmp, ctx_tmp, ctx1_tmp, customBgImage, customBgVideo, customBg, pixelColors, colorKeys, inc_range = 0, dec_range = 0, alpha = 0, black_and_white = false, zoom = 1, toggleGreenScreen = false;
+
+        // Video processing
+        const colorRangeWorker = new Worker('assets/js/color_range.worker.js');
+        colorRangeWorker.onerror = (error) => {
+            console.error(error);
+        }
+        colorRangeWorker.onmessage = (e) => {
+            let result = e.data;
+            if (result.message) {
+                pixelColors = result.message;
+                // pixelColors = {...pxC.mode, ...pxC.least}
+                colorKeys = Object.keys(pixelColors);
+            }
+        }
+        const bgProcessorWorker = new Worker('assets/js/process_background.worker.js');
+        bgProcessorWorker.onerror = (error) => {
+            console.error(error);
+        }
+        bgProcessorWorker.onmessage = (e) => {
+            let result = e.data;
+            if (result.frame) {
+                let frame = result.frame;
+                let w = c_out.width;
+                let h = c_out.height;
+                let sw = w * zoom;
+                let sh = h * zoom;
+                ctx_out.putImageData(frame, 0, 0);
+                ctx_out.drawImage(c_out, 0, 0, w, h, -sw/2 + w/2, -sh/2 + h/2, sw, sh);
+            }
+        }
+        const moodDetectionWorker = new Worker('assets/js/imported.worker.js');
+        moodDetectionWorker.onerror = (error) => {
+            console.error(error);
+        }
+        moodDetectionWorker.onmessage = (e) => {
+            
+        }
+
+
+        function init() {
+            c_out = document.querySelector('#output_canvas');
+            ctx_out = c_out.getContext('2d');
+            // controls
+            const inc = document.querySelector('#inc-range');
+            const dec = document.querySelector('#dec-range');
+            const alphaRange = document.querySelector('#alpha');
+            const bw = document.querySelector('#bw');
+            const zoomScale = document.querySelector('#zoom');
+            const pauseStream = document.querySelector('#pause-stream');
+            const greenScreenCapture = document.querySelector('#green-screen-capture');
+            const saturate = document.querySelector('#saturation');
+            inc.onchange = (e) => {
+                inc_range = inc.value;
+            }
+            dec.onchange = (e) => {
+                dec_range = dec.value;
+            }
+            alphaRange.onchange = (e) => {
+                alpha = alphaRange.value;
+            }
+            bw.onchange = (e) => {
+                black_and_white = bw.checked;
+            }
+            zoomScale.onchange = (e) => {
+                zoom = zoomScale.value;
+            }
+            saturate.onchange = (e) => {
+                c_out.style.filter = `saturate(${saturate.value}%)`;
+            }
+
+            customBgImage = document.createElement('img');
+            customBgImage.src = 'assets/videos/default-bg.jpg';
+
+            customBgVideo = document.createElement('video');
+            customBgVideo.src = 'assets/videos/bg.mp4';
+            customBgVideo.autoplay = true;
+            customBgVideo.muted = true;
+            customBgVideo.loop = true;
+            customBgVideo.width = customBgVideo.videoWidth;
+            customBgVideo.height = customBgVideo.videoHeight;
+            customBgVideo.onload = (e) => {
+                customBgVideo.play();
+            }
+
+            c_in = document.createElement('canvas');
+            c_in.setAttribute('width', 850);
+            c_in.setAttribute('height', 450);
+            ctx_tmp = c_in.getContext('2d');
+            // ctx_tmp.fillStyle = 'rgba(0, 0, 0, 1)';
+            // ctx_tmp.fillRect(0, 0, c_out.width, c_out.height);
+
+            c_tmp = document.createElement('canvas');
+            c_tmp.setAttribute('width', 850);
+            c_tmp.setAttribute('height', 450);
+            ctx1_tmp = c_tmp.getContext('2d');
+
+            //Streaming
+            const streamMedia = navigator.getUserMedia({video: true}, (stream) => {
+                const video = document.createElement('video');
+                video.srcObject = stream;
+                video.autoplay = true;
+                customBg = {
+                    video: false,
+                    image: true,
+                }
+                let cancelId;
+                video.onplay = (e) => {
+                    // c_out.width = video.videoWidth
+                    // c_out.height = video.videoHeight
+                    getColorRange(video);
+                    cancelId = computeFrame(video, customBg);
+                    moodDetection();
+                }
+                video.onpause = (e) => {
+                    try {
+                        clearTimeout(cancelId);
+                    } catch (error) {
+                        
+                    }
+                }
+                pauseStream.onclick = (e) => {
+                    if (video.paused) {
+                        video.play();
+                        pauseStream.textContent = 'Stop';
+                    } else {
+                        video.pause();
+                        pauseStream.textContent = 'Play';
+                    }
+                }
+                greenScreenCapture.onclick = (e) => {
+                    if (toggleGreenScreen === false) {
+                        toggleGreenScreen = true;
+                        getColorRange(video);
+                        greenScreenCapture.textContent = 'Stop Green Screen';
+                    } else {
+                        toggleGreenScreen = false;
+                        greenScreenCapture.textContent = 'Capture Green Screen';
+                    }
+                    
+                }
+
+                const custom_bg = document.querySelector('#custom-bg');
+                custom_bg.onchange = (e) => {
+                    const videoReader = new FileReader();
+                    videoReader.onload = (e) => {
+                        let dataUrl = videoReader.result;
+                        customBgVideo.src = dataUrl;
+                        customBgVideo.play();
+                        customBg.video = true;
+                        customBg.image = false;
+                    }
+                    const imageReader = new FileReader();
+                    imageReader.onload = (e) => {
+                        let dataUrl = imageReader.result;
+                        customBgImage.src = dataUrl;
+                        customBg.video = false;
+                        customBg.image = true;
+                    }
+
+                    let file = custom_bg.files[0];
+                    if (file.type.startsWith('video')) {
+                        videoReader.readAsDataURL(file);
+                    } else if (file.type.startsWith('image')) {
+                        imageReader.readAsDataURL(file);
+                    } else {
+                        alert('file type not supported');
+                    }                
+                }
+            }, (error) => {
+                console.log(error);
+            });
+        }
+
+        function getColorRange(video) {
+            let w = c_out.width;
+            let h = c_out.height;
+            let sw = w * zoom;
+            let sh = h * zoom;
+            ctx1_tmp.drawImage(video, 0, 0, w, h, -sw/2 + w/2, -sh/2 + h/2, sw, sh);
+            let frame = ctx1_tmp.getImageData(0, 0, w, h);
+            colorRangeWorker.postMessage({message: frame});
+        }
+
+        function computeFrame(video, customBackground) {
+            ctx_tmp.drawImage(video, 0, 0, c_out.width, c_out.height);
+            let frame = ctx_tmp.getImageData(0, 0, c_out.width, c_out.height);
+            let frame2;
+            if (customBackground.video) {
+                ctx_tmp.drawImage(mediaCanvas(customBgVideo), 0, 0, c_out.width, c_out.height);
+                frame2 = ctx_tmp.getImageData(0, 0, c_out.width, c_out.height);
+            } else {
+                ctx_tmp.drawImage(mediaCanvas(customBgImage), 0, 0, c_out.width, c_out.height);
+                frame2 = ctx_tmp.getImageData(0, 0, c_out.width, c_out.height);
+            }
+
+            if (colorKeys !== undefined) {
+                let modeMin = pixelColors[colorKeys[0]].min - inc_range;
+                modeMin = (modeMin >= 0) ? modeMin : 0;
+                let modeMax = pixelColors[colorKeys[0]].max + inc_range;
+                modeMax = (modeMax <= 255) ? modeMax : 255;
+
+                let leastMin = pixelColors[colorKeys[1]].min - dec_range;
+                leastMin = (leastMin >= 0) ? leastMin : 0;
+                let leastMax = pixelColors[colorKeys[1]].max + dec_range;
+                leastMax = (leastMax <= 255) ? leastMax : 255;
+                bgProcessorWorker.postMessage({frame, frame2, modeMin, modeMax, leastMin, leastMax, colorKeys, monochrome: black_and_white, toggleGreenScreen});
+            }
+            let id = undefined;
+            id = setTimeout(() => {
+                id = computeFrame(video, customBackground);
+            }, 0);
+            return id;
+        }
+        
+        function mediaCanvas(media) {
+            let canvas = document.createElement('canvas');
+            let context = canvas.getContext('2d');
+            context.drawImage(media, 0, 0, canvas.width, canvas.height);
+            context.fillStyle = `rgba(0, 0, 0, ${alpha})`;
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            return canvas;
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            init();
+        })
+    </script>
+    <script>
+        function moodDetection() {
+            Promise.all([
+                // faceapi.nets.ssdMobilenetv1.loadFromUri('/models'),
+                faceapi.nets.tinyFaceDetector.loadFromUri('/models'),
+                // faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
+                faceapi.nets.faceLandmark68TinyNet.loadFromUri('/models'),
+                // faceapi.nets.faceRecognitionNet.loadFromUri('/models')
+                faceapi.nets.faceExpressionNet.loadFromUri('/models')
+            ])
+            .then(start)
+            .catch(error => {
+                console.log(error);
+            })
+        }
+
+        function start() {
+            const input = document.getElementById('output_canvas');
+            // let media = new Image();
+            // moodDetectionWorker.postMessage({media});
+            faceapi.detectSingleFace(input, new faceapi.TinyFaceDetectorOptions())
+            .withFaceLandmarks(true)
+            .withFaceExpressions()
+            .then(detections => {
+                if (detections !== undefined) {
+                    let displaySize = { width: input.width, height: input.height };
+                    let resizedResults = faceapi.resizeResults(detections, displaySize);
+                    faceapi.draw.drawDetections(input, resizedResults)
+                    // draw a textbox displaying the face expressions with minimum probability into the canvas
+                    const minProbability = 0.6
+                    faceapi.draw.drawFaceExpressions(input, resizedResults, minProbability)
+                    // console.log(detections.expressions);
+                }
+            })
+            .catch(error => {
+                console.log('Face Detection Error:', error);
+            })
+            setTimeout(start, 100);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,91 @@
+<div class="row justify-content-center">
+  <div class="col-md-7">
+    <!--profile menu-->
+    <div class="ui secondary pointing menu">
+      <a class="item active" title="me" data-tab="profile">
+        Profile
+      </a>
+      <a class="item" title="host" data-tab="edit">
+        Edit
+      </a>
+    </div>
+    <!--Profile Tab-->
+    <div class="ui tab segment active" data-tab="profile">
+      <div class="ui items">
+        <div class="item">
+          <div class="image">
+              <img src="assets/images/avatar.png" alt="">
+          </div>
+          <div class="content">
+            <div class="description">
+              <p>
+                <strong>Name: </strong>{{ profile?.name }}
+              </p>
+              <p>
+                <strong>Email: </strong>{{ profile?.email }}
+              </p>
+              <p>
+                <strong>Meeting Rooms: </strong> {{ numberOfRooms }}
+              </p>
+              <button routerLink="/rooms" class="ui inverted blue button">
+                meeting rooms
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!--Edit Tab-->
+    <div class="ui tab segment" data-tab="edit">
+      <form (submit)="updateProfile($event)" *ngIf="!!this.profile?.name === true" method="POST" class="ui equal width form">
+        <h1 class="font-color ui large center aligned header">Edit Profile </h1>
+        <div class="fields">
+          <div class="required field">
+            <label for="name" class="inverted-font-color">Name</label>
+            <div class="font-color ui icon input">
+              <input type="text" placeholder="Name" id="name" name="name" value="{{ profile?.name }}" required>
+              <i class="ui tag icon"></i>
+            </div>
+          </div>
+        </div>
+        <div class="fields">
+          <div class="required field">
+            <label for="email" class="inverted-font-color">Email</label>
+            <div class="font-color ui icon input">
+              <input type="email" placeholder="Email" id="email" name="email" value="{{ profile?.email }}" required>
+              <i class="ui mail icon"></i>
+            </div>
+          </div>
+        </div>
+        <div class="ui inverted blue bottom attached buttons">
+          <button class="inverted-theme ui button">Update</button>
+      </div>
+      </form>
+      <form (submit)="storeProfile($event)" *ngIf="!!this.profile?.name === false" method="POST" class="ui equal width form">
+        <h1 class="font-color ui large center aligned header">Edit Profile </h1>
+        <div class="fields">
+          <div class="required field">
+            <label for="name" class="inverted-font-color">Name</label>
+            <div class="font-color ui icon input">
+              <input type="text" placeholder="Name" id="name" name="name" required>
+              <i class="ui tag icon"></i>
+            </div>
+          </div>
+        </div>
+        <div class="fields">
+          <div class="required field">
+            <label for="email" class="inverted-font-color">Email</label>
+            <div class="font-color ui icon input">
+              <input type="email" placeholder="Email" id="email" name="email" required>
+              <i class="ui mail icon"></i>
+            </div>
+          </div>
+        </div>
+        <div class="ui inverted blue bottom attached buttons">
+          <button class="inverted-theme ui button">Save</button>
+      </div>
+      </form>
+    </div>
+  </div>
+</div>
